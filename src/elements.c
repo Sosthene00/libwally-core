@@ -9,6 +9,7 @@
 #include "src/secp256k1/include/secp256k1_surjectionproof.h"
 #include "src/secp256k1/include/secp256k1_whitelist.h"
 #include <stdbool.h>
+#include <stdio.h>
 
 #ifdef BUILD_ELEMENTS
 
@@ -165,15 +166,38 @@ int wally_asset_rangeproof_with_nonce(uint64_t value,
     if (!ctx)
         return WALLY_ENOMEM;
 
-    if (!nonce_hash || nonce_hash_len != SHA256_LEN ||
-        !asset || asset_len != ASSET_TAG_LEN ||
-        !abf || abf_len != BLINDING_FACTOR_LEN ||
-        !vbf || vbf_len != BLINDING_FACTOR_LEN ||
-        !bytes_out || len < ASSET_RANGEPROOF_MAX_LEN || !written ||
-        get_commitment(ctx, commitment, commitment_len, &commit) != WALLY_OK ||
+    if (!nonce_hash || nonce_hash_len != SHA256_LEN) {
+        printf("nonce_hash\n");
+        goto cleanup;
+    }
+    
+    if (!asset || asset_len != ASSET_TAG_LEN) {
+        printf("asset\n");
+        goto cleanup;
+    }
+    if (!abf || abf_len != BLINDING_FACTOR_LEN) {
+        printf("abf\n");
+        goto cleanup;
+    }
+    if (!vbf || vbf_len != BLINDING_FACTOR_LEN) {
+        printf("vbf\n");
+        goto cleanup;
+    }
+    if (!bytes_out || len < ASSET_RANGEPROOF_MAX_LEN) {
+        printf("bytes_out\n");
+        goto cleanup;
+    }
+    
+    if (get_commitment(ctx, commitment, commitment_len, &commit) != WALLY_OK) {
+        printf("get_commitment failed\n");
+        goto cleanup;
+    }
         /* FIXME: Is there an upper size limit on the extra commitment? */
-        (extra_len && !extra) ||
-        min_value > 0x7ffffffffffffffful ||
+    if ((extra_len && !extra)){
+        printf("extra\n");
+        goto cleanup;
+    }
+    if (min_value > 0x7ffffffffffffffful ||
         exp < -1 || exp > 18 ||
         min_bits < 0 || min_bits > 64 ||
         get_generator(ctx, generator, generator_len, &gen) != WALLY_OK)
@@ -256,15 +280,46 @@ int wally_asset_unblind_with_nonce(const unsigned char *nonce_hash, size_t nonce
     if (!ctx)
         return WALLY_ENOMEM;
 
-    if (!nonce_hash || nonce_hash_len != SHA256_LEN ||
-        !proof || !proof_len ||
-        get_commitment(ctx, commitment, commitment_len, &commit) != WALLY_OK ||
-        (extra_len && !extra) ||
-        get_generator(ctx, generator, generator_len, &gen) != WALLY_OK ||
-        !asset_out || asset_out_len != ASSET_TAG_LEN ||
-        !abf_out || abf_out_len != BLINDING_FACTOR_LEN ||
-        !vbf_out || vbf_out_len != BLINDING_FACTOR_LEN || !value_out)
+    if (!nonce_hash || nonce_hash_len != SHA256_LEN) {
+        printf("nonce_hash is wrong\n");
         goto cleanup;
+    }
+
+    if (!proof || !proof_len) {
+        printf("proof is wrong\n");
+        goto cleanup;
+    }
+
+    if (!asset_out) {
+        // printf("asset_out is %p\n", asset_out);
+        goto cleanup;
+    }
+    
+    if (asset_out_len != ASSET_TAG_LEN) {
+        printf("asset_out is wrong length\n");
+        goto cleanup;
+    }
+    
+    if (!abf_out || abf_out_len != BLINDING_FACTOR_LEN) {
+        printf("abf_out is wrong\n");
+        goto cleanup;
+    }
+    
+    if (!vbf_out || vbf_out_len != BLINDING_FACTOR_LEN || !value_out) {
+        printf("vbf_out or value_out is wrong\n");
+        goto cleanup;
+    }
+
+    if (get_commitment(ctx, commitment, commitment_len, &commit) != WALLY_OK ||
+        (extra_len && !extra)) {
+            printf("get_commitment failed\n");
+            goto cleanup;
+        }
+    if (get_generator(ctx, generator, generator_len, &gen) != WALLY_OK) {
+            printf("get_generator failed\n");
+            goto cleanup;
+        }
+    
 
     /* Extract the value blinding factor, value and message from the rangeproof */
     if (!secp256k1_rangeproof_rewind(ctx, vbf_out, value_out,
@@ -272,8 +327,9 @@ int wally_asset_unblind_with_nonce(const unsigned char *nonce_hash, size_t nonce
                                      nonce_hash, &min_value, &max_value,
                                      &commit, proof, proof_len,
                                      extra, extra_len,
-                                     &gen))
+                                     &gen)) {
         goto cleanup;
+        }
 
     /* FIXME: check results per blind.cpp */
 
@@ -349,6 +405,8 @@ int wally_asset_surjectionproof(const unsigned char *output_asset, size_t output
     size_t actual_index, i;
     int ret = WALLY_EINVAL;
 
+    printf("num_inputs is %zu\n", num_inputs);
+
     if (written)
         *written = 0;
 
@@ -386,6 +444,7 @@ int wally_asset_surjectionproof(const unsigned char *output_asset, size_t output
                                               num_inputs, num_used,
                                               (const secp256k1_fixed_asset_tag *)output_asset,
                                               100, bytes)) {
+        printf("secp256k1_surjectionproof_initialize failed\n");
         ret = WALLY_ERROR; /* Caller must retry with different entropy/outputs */
         goto cleanup;
     }

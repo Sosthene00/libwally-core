@@ -6,12 +6,13 @@
 #endif
 #include "ccan/ccan/build_assert/build_assert.h"
 #include <stdbool.h>
+#include <stdio.h>
 
 #define EC_FLAGS_TYPES (EC_FLAG_ECDSA | EC_FLAG_SCHNORR)
 
 #define MSG_ALL_FLAGS (BITCOIN_MESSAGE_FLAG_HASH)
 
-static const char MSG_PREFIX[] = "\x18" "Bitcoin Signed Message:\n";
+static const char MSG_PREFIX[] = "Bitcoin Signed Message:\n";
 
 /* LCOV_EXCL_START */
 /* Check assumptions we expect to hold true */
@@ -318,7 +319,18 @@ int wally_ec_sig_to_public_key(const unsigned char *bytes, size_t bytes_len,
 static inline size_t varint_len(size_t bytes_len) {
     return bytes_len < 0xfd ? 1u : 3u;
 }
+void    wally_printBytesInHex(const unsigned char *toPrint, const size_t len, const char *label) {
+    char *toPrint_hex;
+    int ret;
 
+    if ((ret = wally_hex_from_bytes(toPrint, len, &toPrint_hex)) != 0) {
+        printf("wally_hex_from_bytes failed with %d error code\n", ret);
+        return;
+    }
+
+    printf("%s is %s\n", label, toPrint_hex);
+    wally_free(toPrint_hex);
+}
 int wally_format_bitcoin_message(const unsigned char *bytes, size_t bytes_len,
                                  uint32_t flags,
                                  unsigned char *bytes_out, size_t len,
@@ -341,6 +353,7 @@ int wally_format_bitcoin_message(const unsigned char *bytes, size_t bytes_len,
     if (len < *written)
         return WALLY_OK; /* Not enough output space, return required size */
 
+    printf("written is %zu\n", *written);
     if (do_hash) {
         /* Ensure we have a suitable temporary buffer to serialize into */
         msg_buf = buf;
@@ -356,6 +369,7 @@ int wally_format_bitcoin_message(const unsigned char *bytes, size_t bytes_len,
     /* Serialize the message */
     out = msg_buf;
     memcpy(out, MSG_PREFIX, sizeof(MSG_PREFIX) - 1);
+    wally_printBytesInHex(out, sizeof(MSG_PREFIX) - 1, "MSG_PREFIX");
     out += sizeof(MSG_PREFIX) - 1;
     if (bytes_len < 0xfd)
         *out++ = bytes_len;

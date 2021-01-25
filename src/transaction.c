@@ -7,6 +7,7 @@
 
 #include <limits.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include "transaction_int.h"
 #include "transaction_shared.h"
 #include "script_int.h"
@@ -1179,8 +1180,11 @@ int wally_tx_free(struct wally_tx *tx)
 int wally_tx_add_input_at(struct wally_tx *tx, uint32_t index,
                           const struct wally_tx_input *input)
 {
+    printf("entering wally_tx_add_input_at\n");
     if (!is_valid_tx(tx) || index > tx->num_inputs || !is_valid_tx_input(input))
         return WALLY_EINVAL;
+    
+    printf("1\n");
 
     if (tx->num_inputs >= tx->inputs_allocation_len) {
         /* Expand the inputs array */
@@ -1194,15 +1198,18 @@ int wally_tx_add_input_at(struct wally_tx *tx, uint32_t index,
         tx->inputs = p;
         tx->inputs_allocation_len += 1;
     }
+    printf("2\n");
 
     memmove(tx->inputs + index + 1, tx->inputs + index,
             (tx->num_inputs - index) * sizeof(*input));
 
+    printf("3\n");
     if (!clone_input_to(tx->inputs + index, input)) {
         memmove(tx->inputs + index, tx->inputs + index + 1,
                 (tx->num_inputs - index) * sizeof(*input)); /* Undo */
         return WALLY_ENOMEM;
     }
+    printf("4\n");
 
     tx->num_inputs += 1;
     return WALLY_OK;
@@ -1228,6 +1235,8 @@ static int tx_add_elements_raw_input_at(
     const struct wally_tx_witness_stack *pegin_witness,
     uint32_t flags, bool is_elements)
 {
+
+    printf("entering tx_add_elements_raw_input_at\n");
     /* Add an input without allocating a temporary wally_tx_input */
     struct wally_tx_input input = {
         { 0 }, utxo_index, sequence,
@@ -1252,17 +1261,42 @@ static int tx_add_elements_raw_input_at(
     (void)pegin_witness;
 #endif
 
+    printf("entering tx_add_elements_raw_input_at sanity check\n");
+
     if (flags)
         return WALLY_EINVAL; /* TODO: Allow creation of p2pkh/p2sh using flags */
 
-    if (!txhash || txhash_len != WALLY_TXHASH_LEN ||
-        BYTES_INVALID_N(nonce, nonce_len, WALLY_TX_ASSET_TAG_LEN) ||
-        BYTES_INVALID_N(entropy, entropy_len, WALLY_TX_ASSET_TAG_LEN) ||
-        BYTES_INVALID(issuance_amount, issuance_amount_len) ||
-        BYTES_INVALID(inflation_keys, inflation_keys_len) ||
-        BYTES_INVALID(issuance_amount_rangeproof, issuance_amount_rangeproof_len) ||
-        BYTES_INVALID(inflation_keys_rangeproof, inflation_keys_rangeproof_len))
+    if (!txhash || txhash_len != WALLY_TXHASH_LEN) {
+        printf("1\n");
         return WALLY_EINVAL;
+    }
+    if (BYTES_INVALID_N(nonce, nonce_len, WALLY_TX_ASSET_TAG_LEN)) {
+        printf("2\n");
+        return WALLY_EINVAL;
+
+    }
+    if (BYTES_INVALID_N(entropy, entropy_len, WALLY_TX_ASSET_TAG_LEN)) {
+        printf("3\n");
+        return WALLY_EINVAL;
+    }
+    if (BYTES_INVALID(issuance_amount, issuance_amount_len)) {
+        printf("4\n");
+        return WALLY_EINVAL;
+    }
+    if (BYTES_INVALID(inflation_keys, inflation_keys_len)) {
+        printf("5\n");
+        return WALLY_EINVAL;
+    }
+    if (BYTES_INVALID(issuance_amount_rangeproof, issuance_amount_rangeproof_len)) {
+        printf("6\n");
+        return WALLY_EINVAL;
+    }
+    if (BYTES_INVALID(inflation_keys_rangeproof, inflation_keys_rangeproof_len)) {
+        printf("7\n");
+        return WALLY_EINVAL;
+    }
+
+    printf("passed sanitycheck\n");
 
     is_coinbase = is_coinbase_bytes(txhash, txhash_len, utxo_index);
     if (is_elements && !is_coinbase)
@@ -1287,6 +1321,7 @@ static int tx_add_elements_raw_input_at(
 #endif /* BUILD_ELEMENTS */
     ret = wally_tx_add_input_at(tx, index, &input);
     wally_clear(&input, sizeof(input));
+    printf("tx_add_elements_raw_input_at over with ret %d\n", ret);
     return ret;
 }
 
@@ -2059,12 +2094,18 @@ static int tx_to_bytes(const struct wally_tx *tx,
     const bool sh_none = opts && (opts->sighash & SIGHASH_MASK) == WALLY_SIGHASH_NONE;
     const bool sh_single = opts && (opts->sighash & SIGHASH_MASK) == WALLY_SIGHASH_SINGLE;
     unsigned char *p = bytes_out;
+    int count = -1;
 
     if (written)
         *written = 0;
 
-    if (!is_valid_tx(tx) || !tx->num_inputs ||
-        (flags & ~WALLY_TX_ALL_FLAGS) || !bytes_out || !written ||
+    if (!is_valid_tx(tx)) {
+        return WALLY_EINVAL;
+    }
+    if (!tx->num_inputs) {
+        return WALLY_EINVAL;
+    }
+    if ((flags & ~WALLY_TX_ALL_FLAGS) || !bytes_out || !written ||
         tx_get_length(tx, opts, flags, &n, is_elements) != WALLY_OK)
         return WALLY_EINVAL;
 
@@ -2073,6 +2114,7 @@ static int tx_to_bytes(const struct wally_tx *tx,
      * when serialized */
     if (!(flags & WALLY_TX_FLAG_ALLOW_PARTIAL) && !tx->num_outputs)
         return WALLY_EINVAL;
+
 
     if (opts && (flags & WALLY_TX_FLAG_USE_WITNESS))
         return WALLY_ERROR; /* Segwit tx hashing is handled elsewhere */
@@ -2106,6 +2148,7 @@ static int tx_to_bytes(const struct wally_tx *tx,
         *p++ = 1;
     else
         p += varint_to_bytes(tx->num_inputs, p);
+
 
     for (i = 0; i < tx->num_inputs; ++i) {
         const struct wally_tx_input *input = tx->inputs + i;
@@ -2670,8 +2713,20 @@ int wally_tx_from_hex(const char *hex, uint32_t flags,
     size_t written;
     int ret;
 
-    if (!hex || hex_len & 0x1 || !output)
+    if (!hex) {
+        printf("1\n");
         return WALLY_EINVAL;
+    }
+
+    if (hex_len & 0x1) {
+        printf("2\n");
+        return WALLY_EINVAL;
+    } 
+    
+    if (!output) {
+        printf("3\n");
+        return WALLY_EINVAL;
+    }
 
     bin_len = hex_len / 2;
 

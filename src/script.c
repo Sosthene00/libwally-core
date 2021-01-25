@@ -82,6 +82,7 @@ static int get_push_size(const unsigned char *bytes, size_t bytes_len,
     if (!bytes || !bytes_len || !size_out)
         return WALLY_EINVAL;
 
+    printf("bytes[0] is %x\n", bytes[0]);
     if (bytes[0] < 76) {
         opcode_len = 1;
         *size_out = bytes[0];
@@ -610,6 +611,9 @@ int wally_scriptsig_multisig_from_bytes(
         n_sigs < 1 || n_sigs > 15 || !sighash || sighash_len != n_sigs ||
         flags || !bytes_out || !written)
         return WALLY_EINVAL;
+
+    printf("passed wally_scriptsig_multisig_from_bytes sanity check\n");
+    printf("n_sigs is %zu\n", n_sigs);
 
     /* Create and store the DER encoded signatures with lengths */
     for (i = 0; i < n_sigs; ++i) {
@@ -1154,14 +1158,17 @@ static int scriptsig_to_witness(unsigned char *bytes, size_t bytes_len, struct w
         size_t push_size, push_opcode_size;
 
         if ((ret = script_get_push_size_from_bytes(p, end - p, &push_size)) != WALLY_OK) {
+            printf("script_get_push_size_from_bytes failed\n");
             goto fail;
         }
         if ((ret = script_get_push_opcode_size_from_bytes(p, end - p, &push_opcode_size)) != WALLY_OK) {
+            printf("script_get_push_opcode_size_from_bytes failed\n");
             goto fail;
         }
         p += push_opcode_size;
 
         if ((ret = wally_tx_witness_stack_add(result, p, push_size)) != WALLY_OK) {
+            printf("wally_tx_witness_stack_add failed\n");
             goto fail;
         }
         p += push_size;
@@ -1214,6 +1221,22 @@ int wally_witness_p2wpkh_from_sig(
     return ret;
 }
 
+void    printBytesToHex(unsigned char *bytes, size_t bytes_len) {
+    char    *str = NULL;
+
+    if (!(str = wally_malloc(bytes_len + 2))) {
+        printf("printBytesToHex\n");
+        return ;
+    }
+
+    for (int i = 0; i < bytes_len; i++) {
+        sprintf(str, "%x", bytes[i]);
+    }
+    sprintf(str, "\n");
+    printf("%s", str);
+    wally_free(str);
+}
+
 int wally_witness_multisig_from_bytes(
     const unsigned char *script,
     size_t script_len,
@@ -1232,6 +1255,7 @@ int wally_witness_multisig_from_bytes(
         !witness || !script_is_op_n(script[0], false, &n_sigs))
         return WALLY_EINVAL;
 
+    printf("passed sanity check of wally_witness_multisig_from_bytes\n");
     buf_len = n_sigs * (EC_SIGNATURE_DER_MAX_LEN + 2) + script_len;
     if (!(scriptsig = wally_malloc(buf_len)))
         return WALLY_ENOMEM;
@@ -1240,8 +1264,12 @@ int wally_witness_multisig_from_bytes(
                                               bytes, bytes_len,
                                               sighash, sighash_len, flags,
                                               scriptsig, buf_len, &scriptsig_len);
+
+    printf("ret of wally_scriptsig_multisig_from_bytes is %d\n", ret);
+    printBytesToHex(scriptsig, scriptsig_len);
     if (ret == WALLY_OK)
         ret = scriptsig_to_witness(scriptsig, scriptsig_len, witness);
+    printf("ret of scriptsig_to_witness is %d\n", ret);
 
     clear_and_free(scriptsig, scriptsig_len);
     return ret;

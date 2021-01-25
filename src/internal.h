@@ -10,6 +10,7 @@
 #define __STDC_WANT_LIB_EXT1__ 1
 #endif
 #include <string.h>
+#include <stdio.h>
 
 /* Fetch an internal secp context */
 const secp256k1_context *secp_ctx(void);

@@ -8,6 +8,7 @@
 #include <include/wally_crypto.h>
 #include "bip32_int.h"
 #include <stdbool.h>
+#include <stdio.h>
 
 #define BIP32_ALL_DEFINED_FLAGS (BIP32_FLAG_KEY_PRIVATE | BIP32_FLAG_KEY_PUBLIC | BIP32_FLAG_SKIP_HASH | BIP32_FLAG_KEY_TWEAK_SUM)
 
@@ -539,6 +540,8 @@ int bip32_key_from_parent_path(const struct ext_key *hdkey,
 
     if (!hdkey || !child_path || !child_path_len || !key_out)
         return WALLY_EINVAL;
+
+    printf("passed bip32_key_from_parent_path sanity check\n");
 
     for (i = 0; i < child_path_len; ++i) {
         struct ext_key *derived = &tmp[tmp_idx];
